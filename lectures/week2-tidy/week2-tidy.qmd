@@ -1,0 +1,786 @@
+---
+title: "Data Science Concepts and Analysis"
+format: 
+  revealjs:
+    theme: default
+    slide-number: true
+    chalkboard: true
+    preview-links: auto
+    html-math-method: mathjax
+    scrollable: true
+    embed-resources: true
+execute:
+  eval: true
+  echo: true
+---
+
+```{r, echo=FALSE}
+library(tidyverse)
+```
+
+## Announcements
+
+- Homework 1 posted, due January 27
+  + Can work with and submit with 1 partner
+  
+- Office Hours:
+  + Utso: Friday, 3-5pm.
+  + Yaxuan: 
+    - Wednesday, 11 - 12pm (Room 113, Building 434),
+    - Friday 11 - 12pm (Zoom)
+  + Yuxi: 
+    - 11am-12pm on Monday in PHELP 2524. 
+  + Franks: Thursday 1-2pm, Zoom: https://tinyurl.com/stat100oh
+
+See Canvas for details
+  
+## This week
+
+* **Tabular data**
+    + Many ways to structure a dataset
+    + Few organizational constraints 'in the wild'
+
+* **Principles of tidy data: matching semantics with structure**
+    + Data semantics: observations and variables
+    + Tabular structure: rows and columns
+    + The tidy standard
+    + Common messes
+    + Tidying operations
+
+* **Transforming data frames**
+    + Subsetting (slicing and filtering)
+    + Derived variables
+    + Aggregation and summary statistics
+
+## Tabular data
+
+* Many possible layouts for tabular data
+* 'Real' datasets have few organizational constraints
+
+
+Most data are stored in tables, but **there are always multiple possible tabular layouts for the same underlying data**.
+
+
+
+## Reading data
+
+```{r}
+mammal_data <- read_csv("data/allison1976.csv")
+mammal_data
+```
+
+## Piping
+
+- Pipes are used to chain a sequence of multiple operations. 
+
+- Makes code more readable and concise
+
+- The pipe operator takes the output of one function and passes it as the first argument to the next function.
+
+- `%>%` in `tidyverse` syntax or `|>`
+
+- There are subtle differences between them. I will try to stick to `|>`
+
+## Piping
+
+```{r}
+## Piping approach
+mammal_data |> 
+  filter(startsWith(species, "African")) |> 
+  select(species, body_wt, brain_wt)
+```
+is the same as...
+```{r}
+## same as
+filtered_data <- filter(.data=mammal_data, 
+                        startsWith(species, "African"))
+select(filtered_data, species, body_wt, brain_wt)
+```
+is the same as...
+```{r}
+## Same as...
+mammal_data[startsWith(mammal_data$species, "African"), c("species", "body_wt", "brain_wt")]
+```
+
+# Why tidy?
+
+- Many possible layouts for tabular data
+
+- 'Real' datasets have few organizational constraints
+
+Most data are stored in tables, but **there are always multiple possible tabular layouts for the same underlying data**.
+
+## Mammal data: long layouts
+
+Below is the Allison 1976 mammal brain-body weight dataset from week 1 lecture shown in two 'long' layouts: 
+```{r}
+# import brain and body weights
+mammal1 <- read_csv('data/allison1976.csv') |> select(1:3)
+mammal1
+```
+
+## Longer layout
+
+```{r, echo=FALSE}
+mammal2 <- mammal1 |> 
+  pivot_longer(cols = contains("wt"), names_to = "measurement", values_to="weight")
+head(mammal2, n=5)
+```
+## Wide format
+```{r, echo=FALSE}
+mammal3 <- mammal2 |> 
+  pivot_wider(names_from = species, values_from = weight)
+mammal3
+```
+
+## GDP growth data: wide layout 
+
+Here's another example: World Bank data on annual GDP growth for 264 countries from 1961 -- 2019. The raw layout is shown below.
+
+```{r}
+gdp1 <- read_csv('data/annual_growth.csv')
+head(gdp1)
+```
+
+## GDP growth data: long layout
+
+Here's an alternative layout for the annual GDP growth data:
+
+```{r, echo=FALSE}
+gdp2 <- gdp1 |> pivot_longer(cols=-c(1,2), names_to="year", values_to="GDP") |> 
+  arrange(year, `Country Name`)
+head(gdp2, n=5)
+```
+
+## SB weather data: long layouts
+
+A third example: daily minimum and maximum temperatures recorded at Santa Barbara Municipal Airport from January 2021 through March 2021.
+
+```{r}
+weather1 <- read_csv('data/sb_weather.csv')
+# convert to date format specifying month/day/year format
+weather1
+weather1 <- weather1 |> mutate(DATE = mdy(DATE)) ## from the lubridate package
+weather1
+```
+
+## SB weather data: long layouts
+```{r, echo=FALSE}
+weather2 <- weather1 %>% mutate(DAY = day(DATE), 
+                                MONTH=month(DATE), 
+                                YEAR=year(DATE)) 
+weather2 |> select(DAY, MONTH, YEAR, TMAX, TMIN)
+```
+
+## SB weather data: wide days
+```{r, echo=FALSE}
+weather3 <- weather2 |> select(-DATE) |> 
+  pivot_longer(names_to="Type", values_to="Temp", cols=c("TMAX", "TMIN")) |> 
+  pivot_wider(names_from=DAY, values_from=Temp)
+weather3
+```
+
+## UN development data: multiple tables
+
+A final example: United Nations country development data organized into different tables according to variable type.
+
+```{r}
+undev1 <- read_csv('data/hdi3.csv', na = '..') |> select(-hdi_rank)
+
+undev2 <- read_csv('data/hdi2.csv', na = '..') |> 
+    select(-one_of(c('hdi_rank', 'maternal_mortality')))
+```
+
+Here is a table of population measurements:
+
+```{r}
+head(undev1, n=3)
+```
+And here is a table of a few gender-related variables:
+
+```{r}
+head(undev2, n=3)
+```
+
+## UN development data: one table
+
+Here are both tables merged by country:
+
+```{r, echo=FALSE}
+undev_combined1 <- inner_join(undev1, undev2, by = 'country')
+undev_combined1
+```
+## A better glimpse
+
+```{r, echo=TRUE}
+glimpse(undev_combined1)
+```
+
+## UN development data: one (longer) table
+
+And here is another arrangement of the merged table:
+
+```{r, echo=FALSE}
+undev_combined2 <- undev_combined1 |> 
+    pivot_longer(
+        cols = contains("gender") | contains("women") | contains("men"),
+        names_to = "gender_variable",
+        values_to = "gender_value"
+    ) |> 
+    pivot_longer(
+        cols = contains("pop"),
+        names_to = "population_variable",
+        values_to = "population_value"
+    )
+undev_combined2
+```
+
+
+
+## Many layouts
+
+**Pause and reflect**
+
+Return to one of the examples and review the different layouts.
+
+- If you had to pick one layout, which would you choose?
+
+- Why would you choose that one?
+    - Aesthetic preference?
+    - "Just makes sense this way"?
+    - "This way is better because..."? 
+
+- Can you envision advantages or disadvantages to different layouts?
+
+## Few organizational constraints
+
+It's surprisingly difficult to articulate reasons why one layout might be preferable to another.
+
+Possibly for this reason, most data are stored in a layout that made intuitive sense to someone responsible for data management or collection at some point in time.
+
+- Usually the choice of layout isn't principled
+
+- Idiosyncratic: two people are likely to make different choices
+
+As a result:
+
+- Few widely used conventions
+
+- Lots of variability 'in the wild'
+
+- Datasets are often organized in bizarre ways
+
+## Consequences for the data scientist
+
+Because of the wide range of possible layouts for a dataset, and the variety of choices that are made about how to store data, **data scientists are constantly faced with determining how best to reorganize datasets in a way that facilitates exploration and analysis.** 
+
+Broadly, this involves two interdependent choices:
+
+- *Choice of **representation**: how to encode information.*
+    - Example: parse dates as 'MM/DD/YYYY' (one variable) or 'MM', 'DD', 'YYYY' (three variables)?
+    - Example: use values 1, 2, 3 or 'low', 'med', 'high'?
+    - Example: name variables 'question1', 'question2', ..., or 'age', 'income', ...?
+    
+
+- *Choice of **form**: how to display information*
+    - Example: wide table or long table?
+    - Example: one table or many?
+
+## Remedy: the tidy data standard
+
+Instead of addressing these challenges -- choice of form and representation -- anew every single time, it is immensely helpful to have a set of organizational principles to standardize the process of rearranging data.
+
+The **tidy data standard** is a principled way of organizing data values. It has two main advantages:
+
+1. Facilitates workflow by establishing a consistent dataset structure.
+2. Principles are designed to make transformation, exploration, visualization, and modeling easy.
+
+This is a pretty intuitive idea. Many (most?) other things are easier when they're thoughtfully organized.
+
+## Principles of tidy data
+
+- **Tidy data matches semantics with structure**
+    - Data semantics: observations, variables, units
+    - Tabular structure: rows and columns
+    - The tidy data standard
+    - Common messes
+    - Tidying operations
+
+## Matching semantics with structure
+
+> "Tidying your data means storing it in a consistent form that matches the semantics of the dataset with the way it is stored. In brief, when your data is tidy, each column is a variable, and each row is an observation. Tidy data is important because the consistent structure lets you focus your struggle on questions about the data, not fighting to get the data into the right form for different functions." *Wickham and Grolemund, R for Data Science, 2017.*
+
+## Matching semantics with structure
+A dataset is a collection of values.
+
+- semantics: meaning
+    - *data semantics* refers to the meaning of each value
+
+- structure: form 
+    - *data structure* refers to how values are arranged
+
+The **tidy standard**: data semantics $\longleftrightarrow$ data structure
+
+## Semantics: units, variables, and observations
+
+*Data semantics* refers to the meaning of values. To introduce some general vocabulary, each value is
+
+- an **observation**
+
+- of a **variable** 
+
+- taken on a **unit**.
+
+To be precise:
+
+- An **observational unit** is the entity measured.
+
+- A **variable** is an attribute measured on each unit.
+
+- An **observation** is a collection of measurements taken on one unit.
+
+## Identifying units, variables, and observations
+
+Let's do an example. In the GDP growth data:
+
+Term | Definition| Example
+---|---|---
+Observational units | Entity measured | Countries
+Variables | Attributes measured | Year, GDP growth
+Observations | Set of measurements per unit | Annual records
+
+```{r}
+# third record
+gdp2[3,]
+```
+
+So, below, -13.605441 (variable) in 1961 (variable) is a record (observation) for Algeria (unit).
+
+## Identifying units, variables, and observations {.smaller} 
+
+In the weather data:
+
+Term | Definition | Instance
+---|---|---
+Observational unit | Entity measured | SB airport weather station (location)
+Variables | Attributes measured | Min temp, max temp, date, station info
+Observations | Set of measurements per unit | Daily records
+
+```{r}
+# first record
+weather1[1, ]
+```
+
+For example: 65 degrees Farenheit is the maximum temperature (one variable) recorded on a day (one observation) at the SB airport weather station (unit).
+
+## Data structure
+
+*Data structure* refers to the form in which it is stored. 
+
+In this context, that means a tabular arrangement of a dataset comprising:
+
+- rows
+
+- columns
+
+As we saw, there are multiple structures available to represent any dataset.
+
+## The tidy standard
+
+The tidy standard consists in matching semantics and structure. 
+
+We can now make that precise. A dataset conforming to the **tidy standard** is organized so that:
+
+1. Each variable is a column.
+2. Each observation is a row.
+3. Each table contains measurements on only one type of observational unit.
+
+<img src="figures/tidy-layout.png" style="height:200px">
+
+## Tidy or messy?
+
+Let's revisit some of our examples of multiple layouts, starting with `gdp1`.
+
+```{r}
+head(gdp1, n=3)
+```
+
+## Tidy or messy? {.smaller}
+
+We can compare the semantics and structure for alignment:
+
+
+::: {layout-ncol=2}
+Semantics |  |
+---|---|
+Observations | Annual records |
+Variables | GDP growth and year |
+Observational units | Countries |
+
+Structure |  |
+---|---|
+Rows | Countries |
+Columns | Value of year |
+Tables | Just one |
+:::
+. . .
+
+Rules 1 and 2 are violated, since column names are values (of year), not variables. *Not tidy*.
+
+
+## Tidy or messy?
+
+In `gdp2`:
+
+```{r}
+head(gdp2, n=4)
+```
+
+## Tidy or messy? {.smaller}
+Comparison of semantics and structure:
+
+::: {layout-ncol=2}
+
+| Semantics            |                     |
+|---------------------|---------------------|
+| Observations        | Annual records      |
+| Variables           | GDP growth and year |
+| Observational units | Countries           |
+
+| Structure           |                     |
+|---------------------|---------------------|
+| Rows                | Annual records      |
+| Columns             | GDP growth and year |
+| Tables              | Just one            |
+
+:::
+. . .
+
+All three rules are met: rows are observations, columns are variables, and there's one unit type and one table. *Tidy*.
+
+## Tidy or messy?
+
+```{r}
+#| slideshow: {slide_type: fragment}
+#| tags: []
+head(weather2, n=4)
+```
+
+Try this one on your own. Then compare with your neighbor.
+
+1. Identify the observations and variables
+2. What are the observational units?
+
+## Tidy or messy?
+
+In `undev1` and `undev2`:
+
+:::{.fragment}
+```{r}
+#| slideshow: {slide_type: fragment}
+#| tags: []
+head(undev1, n=3)
+```
+:::
+:::{.fragment}
+```{r}
+#| slideshow: {slide_type: fragment}
+#| tags: []
+head(undev2, n=3)
+```
+:::
+. . .
+
+Here there are multiple tables. To discuss:
+
+* Are the observational units the same or different?
+* Based on your answer above, is the data tidy or not?
+
+
+## Common messes
+
+These examples illustrate some of the most common kinds of messiness:
+
+- *Columns are values, not variables*
+    - GDP data `gdp1`: columns are 1961, 1962, ...   
+
+- *Multiple variables are stored in one column*
+    - Mammal data `mammal2`: weight column contains both body and brain weights    
+
+- *Variables or values are stored in rows and columns*
+    - Weather data `weather3`: date values are stored in rows and columns, each column contains both min and max temperatures    
+
+- *Measurements on one type of observational unit are divided into multiple tables.*
+    - UN development data: `undev1` stores population variables; `undev2` stores gender-related variables.
+
+## Tidying operations
+
+These common messes can be cleaned up by some simple operations:
+
+- `pivot_longer`
+    - reshape a dataframe from wide to long format
+
+- `pivot_wider`
+    - reshape a dataframe from long to wide format
+
+- *joins*
+    - combine two dataframes row-wise by matching the values of certain columns
+
+## `pivot_longer`
+
+Pivoting resolves the problem of having values stored as columns (common mess 1). 
+
+<center>![](figures/tidy-melt.png){width=80%}</center>
+
+## `pivot_longer`
+
+To illustrate with `gdp1`:
+
+```{r}
+head(gdp1, n=3)
+```
+
+:::{.fragment}
+```{r}
+gdp1 |> pivot_longer(cols=3:61,
+                     names_to="Year",
+                     values_to="GDP") |> 
+  arrange(Year, `Country Name`) # sort by year first then country
+```
+:::
+
+## Pivoting to a wider format
+
+Pivoting to a wider format resolves the issue of having multiple variables stored in one column (common mess 2). 
+
+<center>![](figures/tidy-pivot.png){width=80%}</center>
+
+## Pivot wider
+
+For example, the `mammal2` layout can be put in tidier form with `pivot_longer`:
+
+:::{.fragment}
+```{r}
+head(mammal2, n=3)
+```
+:::
+:::{.fragment}
+```{r}
+mammal2 |> pivot_wider(
+    names_from = 'measurement', # which variable(s) do you want to send to new column names?
+    values_from = 'weight' # which variable(s) do you want to use to populate the new columns?
+) 
+```
+:::
+
+## Pivot longer and wider
+
+Common mess 3 is a combination of messes 1 and 2: values or variables are stored in both rows and columns. Pivoting and melting in sequence can usually fix this. `weather3` illustrates this issue:
+
+```{r}
+weather3
+```
+
+## Pivot longer and wider
+
+First **Pivot Longer**...
+
+```{r}
+## First move date columns into a variable
+weather3_long <- weather3 |> 
+  pivot_longer(cols = 6:36,
+    names_to = 'day',
+    values_to = 'temp'
+  )
+weather3_long
+```
+##  Pivot longer and wider
+
+Then ``pivot_wider``...
+```{r}
+## First move date columns into a variable
+weather3_tidy <- weather3_long |> 
+  pivot_wider(names_from = Type, values_from = temp)
+weather3_tidy
+```
+
+
+## Pivot longer and wider
+
+**All in one chunk**
+
+```{r}
+## First move date columns into a variable
+weather3 |> 
+  pivot_longer(cols = 6:36,
+               names_to = 'day',
+               values_to = 'temp'
+               ) |> 
+  pivot_wider(names_from = Type, 
+              values_from = temp)
+```
+
+## Pivoting
+
+<center>![](figures/tidyr-pivoting.gif)</center>
+
+## Joins
+
+Joining resolves the issue of storing observations or variables on one unit type in multiple tables (mess 4). The basic idea is to combine by matching rows.
+
+<center><img src="figures/join-diagram.png" style="height:300px"></center>
+
+However, there are a number of different joining rules (corresponding to SQL joins).
+
+## Join
+
+The code below combines columns in each table by matching rows based on country.
+
+```{r}
+inner_join(undev1, undev2, by = 'country')
+```
+
+
+
+## Joins
+
+There are various rules for exactly how to join, but the general syntactical procedure to merge dataframes `df1` and `df2` is this.
+
+- Specify **keys**: the shared columns to use for matching rows of `df1` with rows of `df2`.
+    - for example, joining on `date` will align rows in `df2` with rows of `df1` that have the same value for `date`    
+
+- Specify a **rule** for which rows to return after merging
+
+## Inner join
+
+<center>![](figures/inner-join.gif)</center>
+
+## Other joins
+
+- Inner join: keep only rows in both
+- Left join: keep all left rows
+- Right join: keep all right rows
+- Outer join: keep all rows from both
+
+## Tidying facilitates transformation
+
+*Why use the tidy standard? Wouldn't any system of organization do just as well?*
+
+The tidy standard has three main advantages:
+
+1. Having a consistent system of organization makes it easier to focus on analysis and exploration. 
+
+2. Transformation of tidy data is especially natural in most computing environments due to vectorized operations.
+
+3. Many tools for exploration, visualization, and modeling are designed to work with tidy data inputs.
+
+## Visualization
+
+Plotting libraries often operate in such a way that tidy data is easier to plot.
+
+```{r}
+#| output-location: fragment
+
+weather1 |> ggplot(aes(x=DATE, y=TMAX)) + 
+  geom_line()
+
+```
+
+## Exceptions?
+
+There will be situations where you'll need to deviate from the tidy format for various purposes. 
+
+Sometimes, plotting and table construction require reshaping data into non-tidy formats, for example:
+
+```{r}
+#| output-location: fragment
+
+weather4 <- weather1 |> 
+  pivot_longer(cols = c("TMIN", "TMAX"),
+               values_to="Temp", 
+               names_to="Min/Max")
+
+weather4 |> ggplot(aes(x=DATE, y=Temp, col=`Min/Max`)) + 
+  geom_line()
+```
+
+## Exceptions?
+
+```{r}
+#| output-location: fragment
+
+mammal2 |> filter(species %in% c("Rabbit", "Raccoon", "Sheep")) |> 
+  ggplot() + 
+  geom_col(aes(y=weight, x=species, fill=measurement), 
+           position="dodge") + 
+  coord_flip()
+```
+
+
+## Tidy data is not easy to look at
+
+- Tidy data is optimized for computation and visualization
+
+- Most data in a spreadsheet won't be tidy!
+
+- When presenting tables, tidy is usually not optimal
+
+## Review: The Tidy Data Format
+
+The tidy data format is defined by three key principles:
+
+1. Each variable forms a column.
+2. Each observation forms a row.
+3. Each type of observational unit forms a table.
+
+## The tidy format
+
+Tidy data typically has these characteristics:
+
+- Each cell contains a single value.
+- Column headers are variable names, not values.
+- Variables are stored in columns, not rows.
+- Different types of variables are stored in different tables.
+
+
+## Tidy Data Format
+
+**Advantages:**
+
+- Consistent format 
+- Easy visualization with `ggplot2`
+- Simplifies data manipulation.
+  + Tools like dplyr and tidyr work efficiently with tidy data, making data transformation more straightforward.
+- Facilitates analysis
+  + Many statistical and machine learning functions in R expect data in a tidy format.
+
+## Tidy Data Format
+
+**Disadvantages:**
+
+- Learning curve
+- Storage inefficiency
+- Not always intuitive
+  + For some types of data or analyses, a wide format might be more natural 
+  + Not good for examining by eye (e.g. in a spreadsheet)
+
+
+## Review
+
+- In tidy data, rows and columns correspond to observations and variables.
+    - This provides a standard dataset structure that facilitates exploration and analysis.
+    - Many datasets are not stored in this format.
+
+- Transformation operations are a lot easier with tidy data.
+    - Due in part to the way tools in pandas are designed.
+    - The goal of lab 1 is to learn these operations.
+
+- There are situations where non-tidy data is useful.
+    - In PSTAT100, these will usually arise in plotting and tabulation tasks.
+
+## Up next
+
+* Slicing rows by column
+* Filtering rows by logical conditions
+* Defining new variables from scratch or by operations on existing variables (`mutate`)
+* Aggregations (min, mean, max, etc.) 

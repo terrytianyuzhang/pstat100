@@ -1,0 +1,772 @@
+---
+title: "Dataframe Transformations"
+author: "PSTAT100"
+format: 
+  revealjs:
+    smaller: true
+    slide-number: true
+    scrollable: true
+    embed-resources: true
+execute:
+  echo: true
+---
+
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(lubridate)
+
+# Read and process weather data
+weather1 <- read_csv('data/sb_weather.csv')
+weather2 <- weather1 %>%
+  mutate(
+    MONTH = month(as.Date(DATE)),
+    DAY = day(as.Date(DATE)),
+    YEAR = year(as.Date(DATE))
+  ) %>%
+  select(-c(NAME, DATE))
+
+weather3 <- weather2 %>%
+  pivot_longer(
+    cols = c(TMAX, TMIN),
+    names_to = "type",
+    values_to = "temp"
+  ) %>%
+  pivot_wider(
+    id_cols = c(MONTH, type),
+    names_from = DAY,
+    values_from = temp
+  )
+
+# Read and process development data
+undev1 <- read_csv(
+  'data/hdi3.csv', 
+  locale = locale(encoding = "latin1"),
+  na = ".."
+) %>%
+  select(-hdi_rank) %>%
+  arrange(country)
+
+undev2 <- read_csv(
+  'data/hdi2.csv',
+  locale = locale(encoding = "latin1"),
+  na = ".."
+) %>%
+  select(-c(hdi_rank, maternal_mortality))
+
+# Merge and process development data
+undev <- inner_join(undev1, undev2, by = "country") %>%
+  mutate(
+    total_pop = as.numeric(str_remove_all(total_pop, ",")),
+    pop_15to64 = as.numeric(str_remove_all(pop_15to64, ","))
+  )
+```
+
+## Recap: tidy data
+
+The tidy standard consists in matching semantics and structure. 
+
+. . .
+
+A dataset is **tidy** if:
+
+1. Each variable is a column.
+2. Each observation is a row.
+3. Each table contains measurements on only one type of observational unit.
+
+. . .
+
+![](figures/tidy-layout.png)
+
+## Why tidy?
+
+> *Why use the tidy standard? Wouldn't any system of organization do just as well?*
+
+. . .
+
+Advantages:
+
+1. Having a **consistent system of organization** makes it easier to focus on analysis and exploration. (True of any system)
+2. Many **software tools** are designed to work with tidy data inputs. `ggplot` is a good example. (Tidy only)
+3. **Transformation** of tidy data is especially natural in most computing environments due to vectorized operations. (Tidy only)
+
+
+## Advanced Tidying
+
+Consider the `billboard` dataset from the `tidyr` package.
+
+- Song rankings for Billboard top 100 in the year 2000
+
+- Variables: `artist`, `track`, `date.enter` (data song entered the top 100) and `wk1`-`wk76`, the rank fo the song in each week after it entered.
+
+
+
+```{r, echo=TRUE}
+billboard |> select(1:10) 
+```
+<center>Is this a tidy dataset?</center>
+
+## Tidying Data
+
+We can use `pivot_longer` to make this tidy.
+
+```{r, echo=TRUE}
+#| output-location: fragment
+billboard |> 
+  pivot_longer(cols = starts_with("wk"), 
+               names_to = "week", 
+               values_to = "rank")
+```
+. . .
+
+<center>See any problems?</center>
+
+## Tidying Data
+
+```{r, echo=TRUE}
+#| output-location: fragment
+billboard_long <- billboard |> 
+  pivot_longer(cols = starts_with("wk"), 
+               names_to = "week", 
+               names_prefix = "wk",  ## will remove week for us
+               values_to = "rank")
+billboard_long
+```
+
+. . .
+
+<center>See any other problems?</center>
+
+## Tidying Data
+
+With one more tweak...
+
+```{r, echo=TRUE}
+#| output-location: fragment
+billboard_long <- billboard |> 
+  pivot_longer(cols = starts_with("wk"), 
+               names_to = "week", 
+               names_prefix = "wk", 
+               names_transform = list(week = as.integer), 
+               values_to = "rank")
+billboard_long
+```
+
+## Transformations
+
+**Transformations** of data frames are _**operations that modify the shape or values of a data frame**_. These include: 
+
+* Slicing rows by column
+* Filtering rows by logical conditions
+* Defining new variables from scratch or by operations on existing variables (`mutate`)
+* Aggregations (min, mean, max, etc.) 
+
+## Slicing
+
+**Slicing** refers to retrieving a (usually contiguous) subset (a 'slice') of rows/columns from a data frame.
+
+. . .
+
+Uses:
+
+* data inspection/retrieval
+* subsetting for further analysis/manipulation
+* data display
+
+## Data display
+
+Recall the UN Development data:
+```{r}
+#| echo: true
+# preview UN data -- note indexed by country
+head(undev, n=3)
+tail(undev, n=3)
+```
+
+. . .
+
+`head()` and `tail` are slicing operations -- returns the top (bottom) n rows.
+
+## Slicing
+
+The `slice` function can be used to select specific rows by row index:
+```{r}
+#| echo: true
+# preview UN data -- note indexed by country
+undev |> slice(c(1, 50, 100))
+undev |> slice(150:152)
+```
+## Data inspection/retrieval
+
+**glimpse**
+
+```{r}
+#| echo: true
+glimpse(undev)
+```
+`glimpse` plots the tranpose of the table.  Useful for quickly examining all variables and some example values.
+
+## `filter` and `select`
+
+In tidyr:
+
+- `filter` is the primary operation for selecting rows
+
+- `select` is the primary operation for selecting columns
+
+One of the most confusing parts of working with the tidyverse is figuring out when to put things in quotes.  
+<br>
+<center>**When referencing variable names, we typically leave them *unquoted*.**</center>
+
+## Examples
+
+To inspect the percentage of women in parliament in Mexico, slice accordingly:
+
+```{r}
+#| tags: []
+#| echo: true
+undev |> filter(country == "Mexico") |> 
+  select(parliament_pct_women)
+```
+
+Notice that `country` and `parliament_pct_women` are variables (column names) and are unquoted.
+
+. . . 
+
+<center>What was the data type returned by this code?</center>
+
+## Example
+
+Use `pull` rather than `select` if you want to get the data values contained in a column
+
+```{r}
+#| tags: []
+#| echo: true
+undev |> pull(parliament_pct_women) |> head()
+```
+
+Compare this to:
+
+```{r}
+#| tags: []
+#| echo: true
+undev |> select(parliament_pct_women) |> head()
+```
+
+## Accessing the data by row and column
+
+While rarely used, we can also access data in a `tibble` by indexing in with numerical values, as we would a matrix:
+
+```{r}
+#| slideshow: {slide_type: fragment}
+#| echo: true
+undev[112, 8]
+```
+
+## Accessing the data by row and column
+
+Variables in a `tibble` are implicitly lists. A non-tidy way to access them is with ``[[]]`` or `$`
+
+```{r}
+#| slideshow: {slide_type: fragment}
+#| echo: true
+undev[[8]][112]
+```
+
+or...
+
+```{r}
+#| slideshow: {slide_type: fragment}
+#| echo: true
+undev[["parliament_pct_women"]][112]
+```
+or...
+```{r}
+#| slideshow: {slide_type: fragment}
+#| echo: true
+undev$parliament_pct_women[112]
+```
+
+## Selecting {.smaller}
+
+There are many [tidyverse selections](https://dplyr.tidyverse.org/reference/dplyr_tidy_select.html) we can use:
+
+| Category | Operator/Helper | Description |
+|----------|-------|-------------|
+| **Basic Operators** | `:` | Select range of consecutive variables |
+| | `!` | Take complement of variable set |
+| | `&` | Select intersection of two variable sets |
+| | `\|` | Select union of two variable sets |
+| | `c()` | Combine selections |
+| **Column-Specific Helpers** | `everything()` | Matches all variables |
+| | `last_col()` | Select last variable (with optional offset) |
+| | `group_cols()` | Select all grouping columns |
+| **Pattern Matching Helpers** | `starts_with()` | Select variables starting with prefix |
+| | `ends_with()` | Select variables ending with suffix |
+| | `contains()` | Select variables containing string |
+| | `matches()` | Select variables matching regex |
+| | `num_range()` | Select variables matching numerical range (e.g., x01, x02) |
+| **Vector-Based Selection** | `all_of()` | Select variables from character vector (errors if missing) |
+| | `any_of()` | Select variables from character vector (no error if missing) |
+| **Function-Based Selection** | `where()` | Select variables where predicate function returns `TRUE` |
+
+## Examples
+
+Select all columns except `parliament_pct_women` or `pop_under5`
+
+```{r}
+## Combining basic operators
+undev |> select(!(parliament_pct_women | pop_under5))
+```
+
+## Examples
+
+Select all variables containing the string "pop"
+
+```{r}
+## pattern matching
+undev |> select(contains("pop"))
+```
+
+## Examples
+
+```{r}
+colnames(undev)
+```
+How would you select all columns related to gender?
+
+. . . 
+
+```{r}
+undev |> select(ends_with("men") | contains("gender"))
+```
+
+## Missing data
+
+How would you find all the rows where `gender_inequality` is missing?
+
+. . .
+
+```{r}
+undev |> filter(is.na(gender_inequality))
+```
+
+
+## Filtering
+
+Technically, filtering works by slicing according to a long logical vector with one entry per row specifying whether to retain (`TRUE`) or drop (`FALSE`).
+
+```{r}
+#| echo: true
+undev |> filter(total_pop > 100)
+
+## same as...
+pop_over_100 <- undev$total_pop > 100
+head(pop_over_100)
+undev |> filter(pop_over_100)
+``` 
+
+## Simple probability review
+
+Consider a random filter:
+
+```{r}
+#| echo: true
+random_filter <- rbinom(n = nrow(undev), p = 0.03, size = 1) |> as.logical()
+```
+
+. . .
+
+1. How many rows will `undev |> filter(random_filter)` have?
+2. How many rows should this random filtering produce on average?
+
+## Simple probability review
+
+```{r}
+undev |> filter(random_filter)
+```
+
+
+## Logical comparisons - filtering
+
+Any of the following relations can be used to define filtering conditions
+
+| Category | Operators/Functions | Description |
+|----------|------------|-------------|
+| **Comparison Operators** | `==`, `>`, `>=`, `<`, `<=`, `!=` | Basic comparison operations |
+| **Logical Operators** | `&`, `\|`, `!`, `xor()` | Combine conditions with AND, OR, NOT, exclusive OR |
+| **Missing Values** | `is.na()` | Check for missing values |
+| **Range Functions** | `between()`, `near()` | Check if values fall within ranges or are approximately equal |
+| **Containment functions** | `%in%` | Check if the value is contained in a vector |
+
+## Examples
+```{r}
+#| echo: true
+undev |> filter(between(country, 'Mexico', 'Mongolia')) 
+  
+## same as
+undev |> filter(country >= 'Mexico' & country <= 'Mongolia') 
+
+```
+
+## Examples
+
+```{r}
+undev |> filter(near(urban_pct_pop, 50, tol=3))
+```
+
+
+## Defining new variables
+
+Vectorization of operations in R make tidy data especially nice to manipulate mathematically. For example:
+
+```{r}
+#| slideshow: {slide_type: fragment}
+#| tags: []
+#| echo: true
+weather2$TRANGE <- weather2$TMAX - weather2$TMIN
+
+## same as:
+weather2 <- weather2 |> mutate(TRANGE = TMAX - TMIN)
+```
+
+. . .
+
+This computes $t_{min, i} - t_{max, i}$ for all observations $i = 1, \dots, n$.
+
+## Your turn
+
+Let's take another example -- consider this slice of the `undev` data:
+
+```{r}
+undev |> select(total_pop, urban_pct_pop) |> head(n=3)
+```
+
+. . .
+
+With your neighbor, write a line of code that calculates the percentage of the population living in rural areas.
+
+## Custom functions
+
+When mutating variables, you can implement your own functions.  These are known as *lambda functions*. 
+
+In R, we can write lambda functions like this:
+`\(x) x + 3` or `\(x, y) x - y`
+
+lambda functions are useful when you want to apply a custom function to multiple variables
+
+## Transforming multiple variables at once
+
+- Sometimes we want to apply the same function to multiple variables
+
+- In `tidyr` syntax, we do that with `mutate(across(.cols, .fns))`, where `.cols` is the selection of variables and `.fns` defines teh function to apply.
+
+For instance, to express the population count variables in units of 100 thousands (instead of millions):
+
+```{r}
+undev |> mutate(across(total_pop | starts_with("pop_"), \(x) x * 10)) 
+```
+
+## Your turn
+
+The age-group populations are in counts.  With your neighbor, write a line of code that converts these to percentages of the total population.
+
+. . .
+
+```{r}
+undev |> mutate(across(starts_with("pop_"), \(x) x/total_pop)) |> 
+  select(country, total_pop, starts_with("pop_"))
+```
+
+## Naming the columns
+
+```{r}
+undev |> mutate(across(starts_with("pop_"), \(x) x/total_pop, .names = "{.col}_pct")) |> 
+  select(country, total_pop, 
+         starts_with("pop_") & ends_with("_pct"))
+```
+
+
+
+## Aggregation 
+
+**Aggregation** refers to any operation that combines many values into fewer values.
+
+. . .
+
+Common aggregation operations include:
+
+* summation $\sum_{i} x_i$
+* averaging $n^{-1} \sum_i x_i$
+* extrema $\text{min}_i x_i$ and $\text{max}_i x_i$
+* statistics: median, variance, standard deviation, mean absolute deviation, order statistics, quantiles
+
+## Aggregation vs. other transformations
+
+Aggregations *reduce* the number of values, whereas other transformations do not. 
+
+. . .
+
+A bit more formally:
+
+* aggregations map larger sets of values to smaller sets of values
+* transformations map sets of values to sets of the same size
+
+. . .
+
+*Check your understanding*: 
+
+* is $(f*g)(x_i) = \int f(h)g(x_i - h)dh$ an aggregation?
+* is $f(x_1, x_2, \dots, x_n) = \left(\prod_i x_i\right)^{\frac{1}{n}}$  an aggregation?
+
+## Aggregation?
+
+![](figures/gaussian-blur.jpg)
+
+## Sorting and finding max and mins
+
+How can we find the find observation associated with the country that had the largest percentage of women in parliament in the year the UN development data was collected? 
+
+```{r}
+#| echo: true
+#| slideshow: {slide_type: fragment}
+undev |> slice_max(parliament_pct_women)
+```
+
+. . . 
+
+```{r}
+## same as
+undev |> arrange(desc(parliament_pct_women)) |> slice(1)
+```
+
+## Dataframe aggregations
+
+How do we find the mean of every column?
+```{r}
+#| echo: true
+# mean of every column
+undev |> summarize(across(everything(), mean))
+```
+
+## Dataframe aggregations
+
+How do we find the mean of every column?
+```{r}
+#| echo: true
+# mean of every column
+undev |> summarize(across(!country, mean))
+```
+
+## Dataframe aggregations
+
+How do we find the mean of every column?
+
+```{r}
+#| echo: true
+# mean of every column
+undev |> summarize(across(!country, mean, na.rm=TRUE))
+```
+
+## Dataframe aggregations
+
+What about the mean of each row? Do we ever want to do this?
+
+. . . 
+
+Compute the population from 5 to 14:
+
+```{r}
+#| echo: true
+# sum `pop_under5`, `pop_15to64`, and `pop_over65`
+undev |> mutate(pop_5to14 = total_pop - pop_under5 - pop_15to64 - pop_over65) |> 
+  select(country, contains("pop"))
+```
+## Rowwise computations
+
+A more complex solution uses `rowwise()`, which allows you to apply functions across rows as in a similar way to `summarize`
+
+```{r}
+#| echo: true
+# sum `pop_under5`, `pop_15to64`, and `pop_over65`
+undev |> rowwise() |> 
+  mutate(m = sum(c_across(starts_with("pop_")))) |> 
+  ungroup()
+```
+
+## Rowwise computations
+
+This facilitates, for example:
+
+```{r}
+#| echo: true
+undev2 <- undev |> rowwise() |> mutate(pop_5to14 = total_pop - sum(c_across(starts_with("pop_")))) |> 
+  ungroup()
+undev2 |> select(total_pop, starts_with("pop_"))
+```
+
+## Summarizing
+
+Consider the GDP data
+```{r}
+# read in gdp data
+gdp <- read_csv('data/annual_growth.csv')
+gdp
+
+```
+
+. . .
+
+First, we'll conver the GDP data to proportions
+
+
+```{r}
+#| slideshow: {slide_type: fragment}
+#| echo: true
+# convert percentages to multiplicative change
+gdp_prop <- gdp |> drop_na() |> mutate(across(`1961`:`2019`, \(x) x/100 + 1))
+```
+
+## Summarizing
+
+How do we compute the geometric mean of the GDPs in each year, over countries?
+
+```{r}
+# compute geometric mean
+gdp_prop |> summarize(across(where(is.numeric), \(x) prod(x)^(1/length(x))))
+```
+
+## Annualized GDP growth
+
+Here's the country with the highest annualized GDP growth for the period 1961-2019:
+
+```{r}
+geometric_mean <- \(x) prod(x, na.rm=TRUE)^{1/sum(!is.na(x))}
+
+gdp_annualized <- gdp_prop |> rowwise() |> 
+  summarize(country=`Country Name`, annualized_growth_rate =
+              geometric_mean(c_across(starts_with("pop_")))-1) |> 
+  ungroup()
+    
+gdp_annualized |> slice_max(annualized_growth_rate)
+```
+
+## Is there a better way?
+
+- In general, best to avoid `rowwise` operations.  Why?
+
+- We needed rowwise in the example above because the data is not tidy!
+
+- There's a cleaner way, when the data is tidy
+
+## Grouped aggregations
+
+Let's pivot to create tidy data:
+
+```{r}
+gdp_tidy <- gdp_prop |> 
+  pivot_longer(cols = -c(1:2), names_to="Year", values_to="gdp_prop")
+
+gdp_tidy
+```
+
+## Computing annualized growth
+
+We can do this *grouping by* country and computing the geometric mean of the GDP within each country.
+
+```{r}
+gdp_tidy |> group_by(`Country Name`) |> 
+  summarize(annualized_growth_rate = geometric_mean(gdp_prop) -1) |> 
+  arrange(desc(annualized_growth_rate))
+```
+
+Suppose we wanted to compute annualized growth by decade for each country. How could we do it?
+
+## Annualized growth by decade
+
+- Define a decade variable
+
+- Group by country and decade
+
+- Summarize
+
+```{r}
+## Define a decade variable
+gdp_decade <- gdp_tidy |> 
+  mutate(date = ymd(paste0(Year, "01-01"))) |> 
+  mutate(decade = floor_date(date, unit=years(10)))
+```
+
+```{r}
+## group and aggregate
+gdp_decade <- gdp_decade |> group_by(`Country Name`, decade) |> 
+  summarize(annualized_growth_rate = geometric_mean(gdp_prop) - 1) |> 
+  ungroup()
+gdp_decade
+```
+
+## Your turn
+
+*How do you find the country with the highest annualized GDP growth for each decade?*
+
+Write a line of code that would perform this calculation.
+
+. . . 
+
+```{r, echo=TRUE}
+gdp_decade |>  
+  group_by(decade) |> 
+  slice_max(annualized_growth_rate)
+```
+
+
+## Finding the highest ranking songs
+
+In the Billboard data, what's the highest ranking song for each artist?
+
+```{r, echo=TRUE}
+billboard_long |> 
+  group_by(artist) |> 
+  slice_min(rank, with_ties=FALSE) |> 
+  arrange(rank)
+```
+
+## Weeks at the top
+
+How many weeks was each track at no. 1? In the top 10?
+
+```{r, echo=TRUE}
+billboard_long |> 
+  group_by(artist, track) |> 
+  summarize(weeks_at_number_one = sum(rank == 1, na.rm=TRUE), 
+            weeks_in_top_ten = sum(rank <= 10, na.rm=TRUE)) |> 
+  arrange(desc(weeks_at_number_one))
+```
+
+## Recap
+
+* In tidy data, rows and columns correspond to observations and variables.
+    + This provides a standard dataset structure that facilitates exploration and analysis.
+    + Many datasets are not stored in this format.
+    + Transformation operations are a lot easier with tidy data, due in part to the way tools in pandas are designed.
+
+## Recap
+* Transformations are operations that modify the shape or values of dataframes. We discussed
+    + slicing
+    + filtering
+    + mutating 
+    + aggregations (mean, min, max, etc.)
+    + grouped aggregations
+
+* Dataframe manipulations will be used throughout the course to tidy up data and perform various inspections and summaries.
+
+## Up next
+
+We started at this stage of the lifecyle (tidy) so that you could start developing skills that would enable you to jump right into playing with datasets.
+
+Next week, we'll backtrack to the data collection and assessment stages of a project and discuss:
+
+* sampling
+* scope of inference
+* data assessment
+* missing data

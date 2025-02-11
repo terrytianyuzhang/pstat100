@@ -1,11 +1,6 @@
 ---
 title: "Final Project"
-format: 
-  revealjs:
-    theme: default
-    slide-number: true
-    chalkboard: true
-    preview-links: auto
+format: html
 html-math-method: mathjax
 ---
 
@@ -13,7 +8,7 @@ html-math-method: mathjax
 
 Your assignment for the course project is to formulate and answer a question of your choosing based on one of the following datasets:
 
-1. Fertility and infant mortality data: births and infant deaths in the U.S. 2010-present across some demographic subgroups.
+1. Birth data: births and infant deaths in the U.S. 2010-present across some demographic subgroups.
 2. ClimateWatch historical emissions data: greenhouse gas emissions by U.S. state 1990-present
 3. World Happiness Report 2023: indices related to happiness and wellbeing by country 2008-present
 4. A dataset of your choosing: must get instructor approval (request approval via email).

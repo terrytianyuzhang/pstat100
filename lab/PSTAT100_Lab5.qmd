@@ -614,7 +614,7 @@ What sets them apart? The cell below retrieves the normalized data and county na
 x_ctr <- as.data.frame(scale(x_mx))  # Center and scale data
 
 # Convert row names of outliers to numeric indices
-outlier_indices <- match(rownames(outliers), rownames(x_ctr))
+outlier_indices <- match(outliers$County, census$County)
 
 # Retrieve normalized data for outlying rows & join with County info
 outlier_data <- x_ctr %>%
@@ -623,14 +623,8 @@ outlier_data <- x_ctr %>%
 
 # Melt (reshape) data from wide to long format
 outlier_plot_df <- outlier_data %>%
-  pivot_longer(cols = -County, names_to = "Variable", values_to = "Standardized_value")
-
-# Create shaded area within 3SD of mean
-grey_shade <- data.frame(
-  Variable = colnames(x_ctr),
-  upr = rep(3, ncol(x_ctr)),
-  lwr = rep(-3, ncol(x_ctr))
-)
+  pivot_longer(cols = -County, names_to = "Variable", 
+               values_to = "Standardized_value")
 
 # Compute means of each variable across counties
 means_df <- outlier_plot_df %>%
@@ -639,27 +633,28 @@ means_df <- outlier_plot_df %>%
   mutate(large = abs(group_mean) > 3)  # Flag large deviations
 
 # Create base plot
-ticks_plot <- ggplot(outlier_plot_df, aes(x = Standardized_value, y = Variable)) +
+ticks_plot <- ggplot(outlier_plot_df, 
+                     aes(x = Standardized_value, y = Variable)) +
   
   # Add tick marks for outlier values
   geom_point(shape = "|", size = 3) +
   
-  # Add shaded region for ±3 SD range
-  geom_rect(data = grey_shade, aes(xmin = lwr, xmax = upr, ymin = Variable, ymax = Variable), 
-            fill = "gray", alpha = 0.2, inherit.aes = FALSE) +
+  # Add vertical lines for ±3 SD range
+  geom_vline(xintercept = c(-3, 3), linetype = "dashed", color = "gray") +
   
   # Add mean markers
-  geom_point(data = means_df, aes(x = group_mean, y = Variable, color = large), size = 3) +
+  geom_point(data = means_df, 
+             aes(x = group_mean, y = Variable, color = large), 
+             size = 3) +
   
   # Axis labels and minimal theme
-  labs(x = "Standardized Value", y = "Variable", title = "Outlier Standardized Values") +
+  labs(x = "Standardized Value", y = "Variable", 
+       title = "Outlier Standardized Values") +
   theme_minimal() +
   theme(legend.position = "none")
 
 # Display plot
 print(ticks_plot)
-
-
 ```
 
 ## Question 7

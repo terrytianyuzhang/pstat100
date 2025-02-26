@@ -1,0 +1,17 @@
+---
+title: "Climate Data"
+format: pdf
+---
+
+This dataset contains historical greenhouse gas (GHG) emissions data spanning from 1990 to 2019 for 195 countries and regions. You may want to use this dataset for analyzing global and country-specific emission trends over time, comparing emissions between countries, and evaluating progress toward climate goals and commitments. You may want to consider combining this dataset with other datasets on countries that we have used in this class (e.g. GDP or HDI darasets)
+
+## Dataset Overview
+
+- **Source**: [Climate Watch](https://www.climatewatchdata.org/)
+- **Time Period**: 1990-2019 (30 years of annual data)
+- **Geographic Coverage**: 195 countries and regions, including global totals
+- **Measurement Unit**: MtCO₂e (Million metric tons of carbon dioxide equivalent)
+- **Emissions Type**: All greenhouse gases (GHG)
+- **Sector**: Total including Land Use Change and Forestry (LUCF)
+
+

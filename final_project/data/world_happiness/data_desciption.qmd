@@ -1,0 +1,21 @@
+---
+title: "World Happiness Report"
+format: pdf
+---
+
+This is data from World Happiness Report.
+[The World Happiness Report](https://worldhappiness.report/) typically uses the report to explain differences in happiness across countries, with the Life Ladder score being the main indicator of happiness.
+
+The data includes the following variables:
+
+- **Country name**: The name of the country
+- **year**: The year of the observation
+- **Life Ladder**: This is the main happiness score (often called the Cantril ladder score), where people rate their life satisfaction on a scale typically from 0 to 10
+- **Log GDP per capita**: The natural logarithm of GDP per capita, which measures economic wealth
+- **Social support**: A measure of whether people have someone to count on in times of trouble
+- **Healthy life expectancy at birth**: Average number of years a newborn can expect to live in good health
+- **Freedom to make life choices**: A measure of people's perception of their freedom to make their own life decisions
+- **Generosity**: A measure of charitable donation and helping behavior
+- **Perceptions of corruption**: How people perceive corruption levels in their government and businesses
+- **Positive affect**: A measure of positive emotions like joy, laughter, and enjoyment
+- **Negative affect**: A measure of negative emotions like worry, sadness, and anger

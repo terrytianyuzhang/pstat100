@@ -265,7 +265,14 @@ In this question, we'll use a technique called inverse propensity weighting (IPW
 
 To do so, let $Z$ be an indicator for whether the individual is a minority (1 if minority, 0 if not), let $Y$ be the expenditure and $X$ be age.  The IPW formula tells us that we can estimate the mean age-adjusted difference in expenditures between minorities and non-minorities as:  
 
-$$\left(\text{adjusted difference}\right) = \sum_i^n \frac{Y_iZ_i}{e(X_i)} - \frac{Y_i(1-Z_i)}{(1-e(X_i))}$$ 
+
+
+$$\left(\text{adjusted difference}\right) = \hat \mu_1 - \hat \mu_o$$ 
+where
+
+$$\hat{\mu}_1 = \frac{\sum_{i=1}^{n} \frac{Z_i Y_i}{e(X_i)}}{\sum_{i=1}^{n} \frac{Z_i}{e(X_i)}}$$
+
+$$\hat{\mu}_0 = \frac{\sum_{i=1}^{n} \frac{(1-Z_i)Y_i}{1-e(X_i)}}{\sum_{i=1}^{n} \frac{1-Z_i}{1-e(X_i)}}$$
 
 e(X) is called the *propensity score* and corresponds to $Pr(Z=1|X)$, in this case, the probability that an individual is a minority given the age level.
 

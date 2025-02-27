@@ -324,7 +324,7 @@ Because this model is a little different than the examples you've seen so far in
 Each coefficient represents a difference in means from the 'baseline' group. By default, the baseline category of a factor variable is the first level of that factor.  It should be that the first level of the `Age Cohort` factor is "0-5", which will be your baseline.  For the ethnicity, use `fct_relevel` to set the most common category, "White not Hispanic" as the baseline category.  
 
 ```{r}
-dds_lm <- dds_cat |> mutate(Ethnicity = fct_relevel(Ethnicity, "White not Hispanic", after=0))
+dds_cat <- dds_cat |> mutate(Ethnicity = fct_relevel(Ethnicity, "White not Hispanic", after=0))
 ```
 
 For a white female recipient between ages 0 and 5, all indicators in the formula above are 0, so this is the baseline group and:

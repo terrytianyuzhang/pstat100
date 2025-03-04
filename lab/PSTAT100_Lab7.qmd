@@ -1,0 +1,359 @@
+---
+title: "PSTAT 100 Lab 7"
+format: pdf
+editor: visual
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message =  FALSE)
+knitr::opts_chunk$set(warning =  FALSE)
+knitr::opts_chunk$set(error =  FALSE)
+bfcolor <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    sprintf("\\textcolor{%s}{\\textbf{%s}}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'><b>%s</b></span>", color, x)
+  } else x
+}
+
+# Install necessary libraries if they aren't installed
+if (!require(dplyr)) install.packages("dplyr")
+if (!require(tidyr)) install.packages("tidyr")
+if (!require(ggplot2)) install.packages("ggplot2")
+```
+
+# Lab 7: Classification
+
+This lab covers binary regression and classification using logistic regression models. The logistic regression model for a binary outcome $y \in \{0, 1\}$ posits that the probability of the outcome of interest follows a logistic function of the explanatory variable $x$:
+
+$$
+P(Y = 1) = \frac{1}{1 + e^{-(\beta_0 + \beta_1 x)}}
+$$
+
+More commonly, the model is written in terms of the log-odds of the outcome of interest:
+
+$$
+\log\left[\frac{P(Y = 1)}{P(Y = 0)}\right]
+= \beta_0 + \beta_1 x
+$$
+
+Additional explanatory variables can be included in the model by specifying a linear predictor with additional $\beta_j x_j$ terms.
+
+Logistic regression models represent the probability of an outcome as a function of one or more explanatory variables; fitted probabilities can be coerced to hard classifications by thresholding.
+
+```{r}
+# Load libraries
+library(dplyr)
+library(ggplot2)
+library(readr)
+```
+
+For this lab, we'll revisit the SEDA data from an earlier assignment. Below are the log median incomes and estimated achievement gaps on math and reading tests for 625 school districts in California:
+
+```{r}
+seda <- read_csv("seda.csv") %>% drop_na()
+head(seda)
+```
+
+The estimated achievement gap is positive if boys outperform girls, and negative if girls outperform boys. We can therefore define a binary indicator of the direction of the achievement gap:
+
+```{r}
+seda$favors_boys <- seda$gap > 0
+head(seda)
+```
+
+You may recall having calculated the proportion of districts in various income brackets with a math gap favoring boys.
+
+We will now consider the closely related problem of estimating the probability that a district has a math gap favoring boys based on the median income of the district.
+
+Since we're only considering math gaps, we'll filter out the gap estimates on reading tests.
+
+```{r}
+reg_data <- seda[seda$subject == "math", c("log_income", "favors_boys")]
+```
+
+Let's set aside the data for 100 randomly chosen districts to use later in quantifying the classification accuracy of the model.
+
+## Question 1: Data Partitioning
+
+Set aside 100 observations at random for testing. Do this by selecting a random subset of 100 indices. Choose a different RNG seed from your neighbor so that you can compare results based on different training sets.
+
+`r bfcolor("YOUR ANSWER:", "red")`
+
+*(Type your answer here, replacing this text.)*
+
+```{r}
+# select 100 indices at random
+seed <- ...  # assign your desired seed value
+set.seed(seed)
+idx <- sample(1:nrow(reg_data), size = ..., replace = ...)
+
+# partition data
+test <- reg_data[idx, ]
+train <- reg_data[-idx, ]
+```
+
+### Exploratory analysis
+
+Previously you had binned income into brackets and constructed a table of the proportion of districts in each income bracket with a math gap favoring boys. It turns out that binning and aggregation is a useful exploratory strategy for binary regression. Your table from before would have been something like this:
+
+```{r}
+# define income bracket (10 bins)
+train <- train %>% mutate(income_bracket = cut(log_income, breaks = 10))
+
+# compute mean and standard deviation for log_income and favors_boys by income bracket
+tbl <- train %>%
+  group_by(income_bracket) %>%
+  summarise(across(c(log_income, favors_boys),
+                   list(mean = mean, std = sd),
+                   .names = "{.col}_{.fn}")) %>%
+  # remove brackets where favors_boys standard deviation is 0
+  filter(favors_boys_std > 0)
+
+# display the table
+tbl
+
+```
+
+We can plot these proportions, with standard deviations, as functions of income. Since standard deviations are fairly high, the variability bands only show 0.4 standard deviations in either direction.
+
+```{r}
+# Calculate lower and upper bounds for the band
+tbl <- tbl %>%
+  mutate(
+    lwr = favors_boys_mean - 0.4 * favors_boys_std,
+    upr = favors_boys_mean + 0.4 * favors_boys_std
+  )
+
+ggplot(tbl, aes(x = log_income_mean)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "blue", alpha = 0.3) +
+  geom_line(aes(y = favors_boys_mean), color = "blue") +
+  geom_point(aes(y = favors_boys_mean), color = "blue") +
+  # Axis labels
+  labs(
+    x = "log income",
+    y = "Pr(math gap favors boys)"
+  ) +
+  # Minimal theme with grid lines
+  theme_minimal(base_size = 12)
+
+```
+
+We can regard these proportions as estimates of the probability that the achievement gap in math favors boys. Thus, the figure above displays the exact relationship we will attempt to model, only as a continuous function of income rather than at 8 discrete points.
+
+## Question 2: Model Assumptions
+
+The logistic regression model assumes that the probability of the outcome of interest is a monotonic function of the explanatory variable(s). Examine the plot above and discuss with your neighbor. Does this monotinicity assumption seem to be true? Why or why not?
+
+`r bfcolor("YOUR ANSWER:", "red")`
+
+(*Type your answer here, replacing this text.*)
+
+### Model fitting
+
+We'll fit a simple model of the probility that the math gap favors boys as a logistic function of log income:
+
+$$
+\log\left[\frac{P(\text{gap favors boys})}{1 - P(\text{gap favors boys})}\right] = \beta_0 + \beta_1 \log(\text{median income})
+$$
+
+The data preparations are exactly the same as in linear regression: we'll obtain a vector of the response outcome and an explanatory variable matrix containing log median income and a constant (for the intercept).
+
+```{r}
+# explanatory variable matrix (with an intercept)
+x <- model.matrix(~ log_income, data = train)
+
+# response variable
+y <- train$favors_boys
+```
+
+The model is fit using `statsmodels.Logit()`. Note that the endogenous variable (the response) can be either Boolean (take values `True` and `False`) or integer (take values `0` or `1`).
+
+```{r}
+# fit the model using logistic regression
+fit <- glm(favors_boys ~ log_income, data = train, family = binomial(link = "logit"))
+
+# display parameter estimates
+coef(fit)
+```
+
+A coefficient table remains useful for logistic regression:
+
+```{r}
+coef_tbl <- data.frame(
+  estimate = coef(fit),
+  `standard error` = sqrt(diag(vcov(fit)))
+)
+coef_tbl
+```
+
+## Question 3: Confidence intervals
+
+Compute 99% confidence intervals for the model parameters. Store the result as a dataframe called \`param_ci\`.
+
+\*Hint\*: the syntax is identical to that based on \`sm.OLS\`; this is also mentioned in the lecture slides.
+
+`r bfcolor("YOUR ANSWER:", "red")`\
+
+```{r}
+# compute 99% confidence intervals
+param_ci <- as.data.frame(confint(fit, level = 0.99))
+colnames(param_ci) <- c("lwr", "upr")
+
+# display
+param_ci
+```
+
+We can superimpose the predicted probabilities for a fine grid of log median incomes on the data figure we had made previously to compare the fitted model with the observed values:
+
+```{r}
+tbl <- tbl %>%
+  mutate(
+    lwr = favors_boys_mean - 0.4 * favors_boys_std,
+    upr = favors_boys_mean + 0.4 * favors_boys_std
+  )
+
+grid_df <- data.frame(log_income = seq(9, 14, length.out = 200))
+grid_df$pred <- predict(fit, newdata = grid_df, type = "response")
+
+ggplot(tbl, aes(x = log_income_mean)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "blue", alpha = 0.3) +
+  geom_line(aes(y = favors_boys_mean), color = "blue") +
+  geom_point(aes(y = favors_boys_mean), color = "blue") +
+  geom_line(data = grid_df, aes(x = log_income, y = pred), color = "red", alpha = 0.5) +
+  labs(
+    x = "log income",
+    y = "Pr(math gap favors boys)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+Depending on your training sample, the model may or may not align well with the computed proportions, but it should be mostly or entirely within the 0.4-standard-deviation band.
+
+To interpret the estimated relationship, recall that if median income is doubled, the log-odds changes by:
+
+$$
+\hat{\beta}_1\log(2\times\text{median income}) - \hat{\beta}_1 \log(\text{median income}) = \hat{\beta}_1 \log(2)
+$$
+
+Now, exponentiating gives the estimated multiplicative change in odds:
+
+$$
+\exp\left\{\log(\text{baseline odds}) + \hat{\beta}_1 \log(2)\right\} = \text{baseline odds} \times e^{\hat{\beta}_1 \log(2)}
+$$
+
+So computing $e^{\hat{\beta}_1 \log(2)}$ gives a quantity we can readily interpret:
+
+```{r}
+exp(coef(fit)["log_income"] * log(2))
+```
+
+The exact number will depend a little bit on the data partition you used to compute the estimate, but the answer should be roughly consistent with the following interpretation:
+
+> *Each doubling of median income is associated with an estimated **four-fold** increase in the odds that a school district has a math gap favoring boys.*
+
+## Classification
+
+Now we'll consider the task of classifying new school districts by the predicted direction of their math achievement gap.
+
+A straightforward classification rule would be:
+
+$$
+\text{gap predicted to favor boys} \quad\Longleftrightarrow\quad \widehat{Pr}(\text{gap favors boys}) > 0.5
+$$
+
+We can obtain the estimated probabilities using `.predict()`, and construct the classifier manually. To assess the accuracy, we'll want to arrange the classifications side-by-side with the observed outcomes:
+
+```{r}
+# compute predicted probabilities on test set
+preds <- predict(fit, newdata = test, type = "response")
+
+# construct classifier data frame
+pred_df <- data.frame(
+  observation = test$favors_boys,
+  prediction = preds > 0.5
+)
+
+# preview the first few rows
+head(pred_df)
+```
+
+Note that the testing partition was used here -- to get an unbiased estimate of the classification accuracy, we need data that were not used in fitting the model.
+
+Cross-tabulating observed and predicted outcomes gives a detailed view of the accuracy and error:
+
+```{r}
+pred_tbl <- table(pred_df$observation, pred_df$prediction)
+pred_tbl
+```
+
+The entries where `observation` and `prediction` have the same value are counts of the number of districts correctly classified; those where they do not match are counts of errors.
+
+## Question 4: Overall classification accuracy
+
+Compute the overall classification accuracy -- the proportion of districts that were correctly classified.
+
+`r bfcolor("YOUR ANSWER:", "red")`
+
+(*Type your answer here, replacing this text.)*
+
+```{r}
+accuracy <- ...
+```
+
+Often class-wise accuracy rates are more informative, because there are two possible types of error:
+
+1.  A district that has a math gap favoring girls is classified as having a math gap favoring boys
+2.  A district that has a math gap favoring boys is classified as having a math gap favoring girls
+
+You may notice that there were more errors of one type than another in your result above. This is not conveyed by reporting the overall accuracy rate.
+
+For a clearer picture, we can find the proportion of errors among by outcome:
+
+```{r}
+pred_df$error <- pred_df$observation != pred_df$prediction
+fnr <- mean(pred_df$error[pred_df$observation == TRUE])
+fpr <- mean(pred_df$error[pred_df$observation == FALSE])
+tpr <- 1 - fpr
+tnr <- 1 - fnr
+
+# print the results
+cat("false positive rate: ", fpr, "\n")
+cat("false negative rate: ", fnr, "\n")
+cat("true positive rate (sensitivity): ", tpr, "\n")
+cat("true negative rate (specificity): ", tnr, "\n")
+
+
+```
+
+## Question 5: Make your own classifier
+
+Define a new classifier by adjusting the probability threshold. Compute and print the false positive, false negative, true positive, and true negative rates. Experiment until you achieve a better balance between errors of each type.
+
+```{r}
+new_pred_df <- data.frame(
+  observation = ...,  # e.g., observed outcomes (TRUE/FALSE)
+  prediction = ...    # e.g., predicted outcomes (TRUE/FALSE)
+)
+new_pred_df$error <- new_pred_df$observation != new_pred_df$prediction
+new_fnr <- mean(new_pred_df$error[new_pred_df$observation == TRUE])
+new_fpr <- mean(new_pred_df$error[new_pred_df$observation == FALSE])
+new_tpr <- 1 - new_fpr
+new_tnr <- 1 - new_fnr
+
+# print the error rates
+cat("false positive rate: ", new_fpr, "\n")
+cat("false negative rate: ", new_fnr, "\n")
+cat("true positive rate (sensitivity): ", new_tpr, "\n")
+cat("true negative rate (specificity): ", new_tnr, "\n")
+```
+
+## Submission
+
+1.  Save the notebook.\
+2.  Restart the kernel and run all cells. (**CAUTION**: if your notebook is not saved, you will lose your work.)\
+3.  Carefully look through your notebook and verify that all computations execute correctly. You should see **no errors**; if there are any errors, make sure to correct them before you submit the notebook.\
+4.  Download the notebook as an `.qmd` file. This is your backup copy.\
+5.  Export the notebook as PDF and as a `.qmd` file and upload to Canvas.

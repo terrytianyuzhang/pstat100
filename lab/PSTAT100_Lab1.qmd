@@ -71,11 +71,11 @@ We will use the example dataset: **`fruit_info`**, which contains information ab
 
 ### Creating DataFrames from Scratch
 
-In R, we use the `data.frame()` function to create a dataframe. Let’s create a dataframe for the **`fruit_info`** dataset.
+In R, we use the `data.frame()` function to create a dataframe. Let's create a dataframe for the **`fruit_info`** dataset.
 
 #### [Syntax 1: Using a List]{.underline}
 
-In R, we use the `data.frame()` function to create a dataframe. Here’s an example of creating a dataframe using a list.
+In R, we use the `data.frame()` function to create a dataframe. Here's an example of creating a dataframe using a list.
 
 #### Example: Creating a DataFrame from a Dictionary
 
@@ -262,7 +262,7 @@ When using the indexing `[]` approach, the `:` specifies that values are assigne
 
 #### (2) New column assignment with missing data:
 
-For example, let’s try adding a new column `rank3` and assign values only to the first two rows. Try running the cell below.
+For example, let's try adding a new column `rank3` and assign values only to the first two rows. Try running the cell below.
 
 `r bfcolor("YOUR ANSWER:", "red")`\
 
@@ -300,7 +300,7 @@ We can detect missing values using the `is.na()` method in R, which will return 
 -   **Visualization**: This is helpful for identifying rows or columns with missing data.
 :::
 
-It’s often more helpful to see if any column has missing values. You can do this by appending `any()` to the `is.na()` function, which will return `TRUE` if there are any missing values in the column.
+It's often more helpful to see if any column has missing values. You can do this by appending `any()` to the `is.na()` function, which will return `TRUE` if there are any missing values in the column.
 
 `r bfcolor("YOUR ANSWER:", "red")`\
 
@@ -365,9 +365,9 @@ To remove all columns that start with the word "rank", we will use the `starts_w
 
 #### (2) Creating a new dataframe with capitalized column names:
 
-Now, let’s create a new dataframe `fruit_info_mod2` with the same information as `fruit_info_original`, but with all column names capitalized.
+Now, let's create a new dataframe `fruit_info_mod2` with the same information as `fruit_info_original`, but with all column names capitalized.
 
-First, we’ll start by creating a copy of `fruit_info_original`.
+First, we'll start by creating a copy of `fruit_info_original`.
 
 `r bfcolor("YOUR ANSWER:", "red")`\
 
@@ -592,7 +592,7 @@ Filtering is the process of sifting out rows according to a criterion. In R, thi
 
 ### Example: Filter Names Based on Occurrence Count
 
-Let’s say we want to filter out all names with fewer than 1000 occurrences. First, we can define a logical vector that checks the `Count` column.
+Let's say we want to filter out all names with fewer than 1000 occurrences. First, we can define a logical vector that checks the `Count` column.
 
 ```{r}
 # Create a logical vector where TRUE means Count is greater than 1000
@@ -679,7 +679,7 @@ Grouping and aggregation are useful in generating data summaries, which are ofte
 
 ### [Aggregation]{.underline}
 
-**Aggregation** literally means 'putting together' (etymologically the word means 'joining the herd'). In statistics and data science, this refers to data summaries like an average, a minimum, or a measure of spread such as the sample variance or mean absolute deviation. From a technical point of view, operations that take multiple values as inputs and return a single output are considered summaries — in other words, statistics.
+**Aggregation** literally means 'putting together' (etymologically the word means 'joining the herd'). In statistics and data science, this refers to data summaries like an average, a minimum, or a measure of spread such as the sample variance or mean absolute deviation. From a technical point of view, operations that take multiple values as inputs and return a single output are considered summaries --- in other words, statistics.
 
 Some of the most common aggregations are:
 
@@ -706,7 +706,7 @@ R provides built-in functions that compute most of these summaries, such as:
 -   `.min()` and `.max()`\
 -   `.quantile()`\
 
-To illustrate these operations, let’s filter out all names in 1995.
+To illustrate these operations, let's filter out all names in 1995.
 
 ```{r}
 # Filter for names in 1995
